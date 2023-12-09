@@ -1,0 +1,916 @@
+---
+title: "EDA Cardiovascular Disease Data"
+format: 
+   pdf:
+    toc: true
+    toc-title: Contents
+---
+
+{{< pagebreak >}}
+
+# Data Set Description
+
+Data Source : https://www.kaggle.com/datasets/sulianova/cardiovascular-disease-dataset
+
+Dataset "*data_cardio.csv*" has the following columns i.e. variables :
+
++------------+--------------------------+-------------+----------------------+
+| Nr.        | Variable Name            | Column Name | Scale                |
++============+==========================+=============+======================+
+| 1          | Age                      | age         | int (days)           |
++------------+--------------------------+-------------+----------------------+
+| 2          | Height                   | height      | int (cm)             |
++------------+--------------------------+-------------+----------------------+
+| 3          | Weight                   | weight      | float (kg)           |
++------------+--------------------------+-------------+----------------------+
+| 4          | Gender                   | gender      | Categorical code     |
+|            |                          |             |                      |
+|            |                          |             | 1 : male             |
+|            |                          |             |                      |
+|            |                          |             | 0 : female           |
++------------+--------------------------+-------------+----------------------+
+| 5          | Systolic blood pressure  | ap_hi       | int                  |
++------------+--------------------------+-------------+----------------------+
+| 6          | Diastolic blood pressure | ap_lo       | int                  |
++------------+--------------------------+-------------+----------------------+
+| 7          | Cholesterol              | cholesterol | Categorical code     |
+|            |                          |             |                      |
+|            |                          |             | 1: normal            |
+|            |                          |             |                      |
+|            |                          |             | 2: above normal      |
+|            |                          |             |                      |
+|            |                          |             | 3: well above normal |
++------------+--------------------------+-------------+----------------------+
+| 8          | Glucose                  | gluc        | Categorical code     |
+|            |                          |             |                      |
+|            |                          |             | 1: normal            |
+|            |                          |             |                      |
+|            |                          |             | 2: above normal      |
+|            |                          |             |                      |
+|            |                          |             | 3: well above normal |
++------------+--------------------------+-------------+----------------------+
+| 9          | Smoking                  | smoke       | Categorical -Binary  |
+|            |                          |             |                      |
+|            |                          |             | 0 : No               |
+|            |                          |             |                      |
+|            |                          |             | 1 : Yes              |
++------------+--------------------------+-------------+----------------------+
+| 10         | Alcohol intake           | alco        | Categorical - Binary |
+|            |                          |             |                      |
+|            |                          |             | 0 : No               |
+|            |                          |             |                      |
+|            |                          |             | 1 : Yes              |
++------------+--------------------------+-------------+----------------------+
+| 11         | Physical Activity        | active      | Categorical - Binary |
+|            |                          |             |                      |
+|            |                          |             | 0 : No               |
+|            |                          |             |                      |
+|            |                          |             | 1 : Yes              |
++------------+--------------------------+-------------+----------------------+
+| 12         | Cardio Disease           | cardio      | Categorical - Binary |
+|            |                          |             |                      |
+|            |                          |             | 0 : absent           |
+|            |                          |             |                      |
+|            |                          |             | 1 : present          |
++------------+--------------------------+-------------+----------------------+
+
+{{< pagebreak >}}
+
+```{r setup, include=FALSE}
+#| echo: false
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-library, include=FALSE}
+#| echo: false
+library(tidyverse)
+library(patchwork)
+library(kableExtra)
+```
+
+# Data Pre-Processing
+
+1.  Read data from .csv file.
+
+```{r readData}
+#| include: true
+# Read CSV file.
+rawCardioData = read_delim("data/cardio_train.csv", delim=";", 
+                           show_col_types = FALSE) |> as_tibble()
+```
+
+```{r displayRawData}
+#| echo: false
+# Print Raw data
+kbl(head(rawCardioData, 4), booktabs = T, align='c',
+    caption="Raw Cardio Data") |>
+  kable_styling(latex_options = c("striped","scale_down","HOLD_position"))
+```
+
+2.  Check missing values: There are no missing values in data.
+
+```{r missingValues}
+#| include: true
+# Count total missing values in each column of data frame.
+missing.values = rawCardioData |>
+      pivot_longer(cols=1:ncol(rawCardioData), 
+                   names_to = "Variables", 
+                   values_to = "Value") |>
+      group_by(Variables) |>
+      summarise(missing.val = sum(is.na(Value)))|>
+      pivot_wider(names_from=Variables, values_from=missing.val)
+```
+
+```{r print_NATable}
+#| echo: false
+# Print table Missing values per column
+kbl(missing.values,booktabs = T, align='c',
+    caption="Missing values per column") |>
+  kable_styling(latex_options = c("striped","scale_down","HOLD_position"))
+```
+
+3.  Remove Duplicate rows from data.
+
+```{r duplicateRow}
+
+# Remove duplicate rows using all variables except 'id'.
+noUniqueData = rawCardioData |> 
+              distinct(age,gender,height,weight,ap_hi,ap_lo,
+                       cholesterol,gluc, smoke, alco, active, cardio,
+                       .keep_all=TRUE)
+```
+
+```{r totalDuplcaiteRows}
+#| echo: false
+duplicateRows = nrow(rawCardioData) - nrow(noUniqueData)
+cat("Total", duplicateRows, "duplicates rows are removed.")
+```
+
+4.  Convert category variables "*gender*", "*smoke*", "*cholesterol*", "*gluc*", "*alco*", "*active*", "*cardio*" to factor.
+
+```{r factors}
+#| echo: false
+
+# Convert category variable to factor
+tidyCardioData = noUniqueData |>
+            mutate(gender = factor(gender, 
+                             levels = c(1,2),
+                             labels = c("Female", "Male")),
+                   cholesterol = factor(cholesterol,
+                                  levels = c(1,2,3),
+                                  labels = c("Normal",
+                                             "Above Normal",
+                                             "Well Above Normal")),
+                   gluc = factor(gluc,
+                           levels = c(1,2,3),
+                           labels = c("Normal",
+                                      "Above Normal",
+                                      "Well Above Normal")),
+                   smoke = factor(smoke, 
+                            levels = c(0,1),
+                            labels = c("No","Yes")),
+                   alco = factor(alco,
+                           levels = c(0,1),
+                           labels = c("No", "Yes")),
+                   active = factor(active,
+                             levels = c(0,1),
+                             labels = c("No", "Yes")),
+                   cardio = factor(cardio,
+                             levels = c(1,0),
+                             labels = c("Present", "Absent")) 
+                  )
+```
+
+5.  Convert scale of Age from days to year. Round it to whole number.
+
+```{r ageScale}
+
+# Convert scale of Age from days to year. Round it to whole number.
+tidyCardioData = tidyCardioData |> mutate(age = round(age / 365))
+```
+
+6.  Display Tidy Data.
+
+```{r displayTidyData}
+#| echo: false
+# Print Tidy Data
+kbl(head(tidyCardioData, 4), booktabs = T, align='c',
+    caption="Tidy Cardio Data") |>
+  kable_styling(latex_options = c("striped","scale_down","HOLD_position"))
+```
+
+7.  Save tidy data.
+
+```{r saveTidyData}
+
+# Save pre-process Tidy data in project folder '/data' as .RData format.
+save(tidyCardioData, file = "data/tidyCardioData.RData")
+```
+
+{{< pagebreak >}}
+
+# Task 01 - Outliers
+
+Check the continuous variables for outliers and remove implausible values
+
+#### 1. Statistic Summary Table of continuous variables
+
+```{r task1_summaryTable}
+#| echo: false
+
+# Statistic Summary Table of continous variables.
+summaryTable = tidyCardioData |>
+               select(age, height, weight, ap_hi, ap_lo) |>
+               pivot_longer(cols=1:5, 
+                            names_to="Variables", 
+                            values_to="Values") |>
+              group_by(Variables) |>
+              summarise(Min = min(Values), 
+                        Q1st = quantile(Values, p=0.25),
+                        Median = median(Values),
+                        Mean = mean(Values),
+                        Q3rd = quantile(Values, p=0.75),
+                        Max=max(Values) )
+
+# Print Statistic Summary Table of continous variables.
+kbl(summaryTable, booktabs = T, align='c', digits=2,
+    col.names=c("Variable", "Min","1st qu.","Median",
+                "Mean","3rd qu.", "Max"),
+    caption="Statistic summary of continuous variables") |>
+  kable_styling(latex_options = c("striped","HOLD_position"))
+```
+
+#### 2. Remove implausible values
+
+##### Height :
+
+There are subjects with height under 100cm. And subject's age is above 30 in data. It is may be incorrect data. Based on analysis, subjects with below 100cm height are removed.
+
+##### Weight :
+
+There are subjects with weight below 25kg. And subject's age is above 30 in data. It is may be incorrect data. Based on analysis, subjects with below 25kg weight are removed.
+
+##### Systolic blood pressure (SBP): ap_hi
+
+From Statistic summary of SBP, there are negative values and outrageously very high values. Range between 20 and 280 will be consider as acceptable value. Subjects with below 20 and above 280 SBP value are removed.
+
+##### Diastolic blood pressure (DBP): ap_lo
+
+From Statistic summary of DBP, there are implausible values in dataset. There are negative values and very high values. Range between 20 and 220 will be consider as acceptable value. Subjects with below 20 and above 220 DBP value are removed.
+
+##### Age :
+
+Boxplot shows that there is outliers at lower age. Inter Quantile Ranger(IQR) Technique is used to remove outliers. Data points below (Q1 - 1.5\*IQR) are consider as outliers and are removed.
+
+```{r task1_implausible_values}
+#| include: true
+
+# Filter implausible values from  height, weight, ap_hi and ap_lo.
+# Height implausible values : below 100cm
+# Weight implausible values : below 25kg
+# ap_hi implausible values : below 20 and above 280
+# ap_lo implausible values : below 20 and above 220
+# age outliers : values below (Q1 - 1.5*IQR)
+ cardioDataTask1 = tidyCardioData |>
+              filter(height >= 100,
+                     weight >= 25,
+                     ap_hi > 20 & ap_hi <= 280,
+                     ap_lo > 20 & ap_lo <= 220,
+                     age > (quantile(age, 0.25)) - (1.5 * IQR(age))
+                     )
+```
+
+```{r task1-Age_plot}
+#| echo: false
+
+# Variable Age Box Plot
+age_boxplot_before = ggplot(tidyCardioData) +
+  geom_boxplot(aes(age)) +
+  labs(x="age(years)", title = "Age Boxplot Before")
+  
+  
+# Variable Age Box Plot after filter implausible values.
+age_boxplot_after = ggplot(cardioDataTask1) +
+  geom_boxplot(aes(age))+
+  labs(x="age(years)", title = "Age Boxplot After")
+
+# Variable Age BoxPlot before and after filter implausible values.
+ age_boxplot_before + age_boxplot_after + 
+   plot_annotation(theme = theme_bw())
+```
+
+{{< pagebreak >}}
+
+#### 3. Statistic Summary Table after removing implausible values.
+
+```{r task1_summaryTableAfter}
+#| echo: false
+summaryTableAfter = cardioDataTask1 |>
+                     select(age, height, weight, ap_hi, ap_lo) |>
+                     pivot_longer(cols=1:5, 
+                                  names_to="Variables", 
+                                  values_to="Values") |>
+                     group_by(Variables) |>
+                     summarise(Min = min(Values), 
+                               Q1st = quantile(Values, p=0.25),
+                               Median = median(Values),
+                               Mean = mean(Values),
+                               Q3rd = quantile(Values, p=0.75),
+                               Max=max(Values) )
+
+knitr::kable(summaryTableAfter,
+             format= "pipe", align = 'c', digits=2,
+             col.names=c("Variable", "Min","1st qu.","Median",
+                         "Mean","3rd qu.", "Max"),
+             caption="Statistic summary of continuous variables After")
+```
+
+{{< pagebreak >}}
+
+# Task 02 - Feature Engineering 
+
+#### 1. Create new variable BMI (Body Mass Index).
+
+$$
+BodyMassIndex (kg/m^2) = Weight(kg)  /  [Height(m)]^2 
+$$
+
+```{r task2-1}
+#| catch: true
+
+# Create new variable BMI and save data as cardioDataTask2 
+cardioDataTask2 = cardioDataTask1 |>
+          mutate(BMI = weight / ((height/100)^2)) |> #Convert Height in meter
+          relocate(BMI, .after=weight) # Move BMI Column after column Weight
+
+```
+
+```{r task2-1_printTable}
+#| echo: false
+
+knitr::kable(head(cardioDataTask2, 4), digit=3, booktabs = T,
+             caption="Cardio Data with variable BMI") |>
+             kable_styling(latex_options = c("HOLD_position","striped",
+                                             "scale_down"))
+```
+
+#### 2. Summary table for the variable BMI for both cardio groups.
+
+```{r task2-2}
+#| echo: false
+
+# Create BMI Summary Table
+bmi_summary = cardioDataTask2 |>
+   group_by(cardio) |>
+   summarise(Min.BMI = min(BMI), 
+             Q1st.BMI = quantile(BMI, p=0.25),
+             Mean.BMI = mean(BMI), 
+             Sd.BMI = sd(BMI), 
+             Median.BMI = median(BMI),
+             Q3rd.BMI = quantile(BMI, p=0.75),
+             Max.BMI = max(BMI)
+             )
+# Print BMI summary Table
+kbl(bmi_summary, booktabs = T, digit=2, align='c',
+    col.names= gsub("[.]", " ", names(bmi_summary)),
+    caption="BMI Statistic Summary") |>
+  kable_styling(latex_options = c("striped","HOLD_position"))
+```
+
+#### 3. Save Task2 data.
+
+```{r task2_saveData}
+
+# Save data after Task 1 and 2 in project folder '/data' as .RData format.
+save(cardioDataTask2, file = "data/cardioDataTask2.RData")
+```
+
+{{< pagebreak >}}
+
+# Task 03 - SBP and BMI Correlation
+
+#### **Task Description :**
+
+How does the systolic blood pressure and the BMI correlate to each other? Is there any difference between the two classes of cardiovascular disease?
+
+#### 1. Correlation between the systolic blood pressure(SBP) and the BMI:
+
+Spearman's rank correlation is computed to assess the correlation between the SBP and the BMI. Spearman Correlation is used because there are still outlines present in data after plausibility check (Task1). Scatter plot's x-axis is zoomed to BMI range 15 to 75, which cover span more than 1st and 3rd quartile of BMI date. (As per Task2).
+
+```{r task3_1}
+#| echo: false
+#| warning: false
+
+# Correlation factor between SBP and BMI using whole data set.
+cor_sbp_BMI = cor(cardioDataTask2$ap_hi, cardioDataTask2$BMI, 
+                    method = "spearman")
+
+# Print Correlation Coefficient value
+cat("SBM and BMI correlation Coefficient with Spearman Method : ", 
+    cor_sbp_BMI)
+
+#Scatter Plot between SBP and BMI
+BMI_sbp = ggplot(cardioDataTask2, aes(x=BMI, y=ap_hi, color=cardio)) +
+           geom_point(alpha = .3) + # Overplotting
+           xlim(15,75) +
+           labs(title = "SBP ~ BMI") +
+           theme_bw()
+
+BMI_sbp
+```
+
+Conclusion:
+
+The Spearman Correlation coefficient is 0.28. The value is near 0, which means that there is a very low positive correlation between the SBP and the BMI.
+
+{{< pagebreak >}}
+
+#### 2. Analysis difference between the two categories of variable 'cardio'.
+
+Spearman's rank correlation coefficient and SBM \~ BMI scatter plot per class of 'cardio' are use to analysis difference between two class.
+
+```{r task3_2}
+#| echo: false
+#| warning: false
+
+# Filter data base on cardio 2 class i.e. Absent and Present.
+cardioAbsent = cardioDataTask2 |>
+               filter(cardio == "Absent") 
+
+cardioPresent = cardioDataTask2 |>
+               filter(cardio == "Present")
+
+# Correlation factor between SBP and BMI for Cardio Absent
+corA_sbp_BMI = cor(cardioAbsent$ap_hi, cardioAbsent$BMI, 
+                    method = "spearman")
+
+# Correlation factor between SBP and BMI for Cardio Absent
+corP_sbp_BMI = cor(cardioPresent$ap_hi, cardioPresent$BMI, 
+                    method = "spearman")
+
+# Print Correlation Coefficient value
+cat("SBM and BMI Correlation Coefficient for class cardio disease absent : ", 
+    corA_sbp_BMI)
+cat("SBM and BMI Correlation Coefficient for class cardio disease present: ", 
+    corP_sbp_BMI)
+
+# Compare Scatter plot between SBP and BMI per cardio class.
+sbp_BMI_cardioPresent = ggplot(cardioPresent,aes(x=BMI,y=ap_hi,color=cardio)) +
+                           geom_point(alpha = .3) +
+                           xlim(15,75) # Zoom plot ordinary BMI range 15-75
+                           
+sbp_BMI_cardioAbsent = ggplot(cardioAbsent, 
+                              aes(x=BMI, y=ap_hi,color=cardio)) +
+                      geom_point(alpha = .3) +
+                      scale_color_manual(values=c("blue")) +
+                      xlim(15,75) # Zoom plot ordinary BMI range 15-75
+                      
+sbp_BMI_cardioAbsent / sbp_BMI_cardioPresent +  
+  plot_annotation(title = "Scatter plot : SBP ~ BMI per cardio class", 
+                  theme = theme_bw())
+```
+
+Conclusion:
+
+Correlation coefficient for class cardio disease present is slightly less than for class cardio disease absent. i.e. 0.02. Both Correlation coefficient are approximately 0.2, which is small.
+
+Correlation coefficient for class cardio disease present and absent are respectively 0.180 and 0.201, which is near to 0.
+
+Scatter plot does not shows any significant difference in relationship of SBM and BMI between the two class of variable 'cardio'. As analysis, there is no significant difference between the two class of variable 'cardio'.
+
+{{< pagebreak >}}
+
+# Task 04 - DBP and BMI Correlation
+
+#### **Task Description :**
+
+How does the diastolic blood pressure and the BMI correlate to each other? Is there any difference between the two classes of cardiovascular disease?
+
+#### 1. Correlation between the diastolic blood pressure (DBP) and the BMI:
+
+As Task 3, Spearman Correlation is used to to assess the correlation between the DBP and the BMI.
+
+```{r task4_1}
+#| echo: false
+#| warning: false
+
+# Correlation factor between DBP and BMI using whole data set.
+cor_dbp_BMI = cor(cardioDataTask2$ap_lo, cardioDataTask2$BMI, 
+                    method = "spearman")
+
+# Print Correlation Coefficient value
+cat("DBM and BMI correlation Coefficient with Spearman Method : ", 
+    cor_dbp_BMI)
+
+#Scatter Plot between DBP and BMI
+BMI_dbp = ggplot(cardioDataTask2, aes(x=BMI, y=ap_lo, color=cardio)) +
+           geom_point(alpha = .3) + # Overplotting
+           xlim(15,75) +
+           labs(title = "DBP ~ BMI") +
+           theme_bw()
+
+BMI_dbp
+```
+
+Conclusion:
+
+The Spearman Correlation coefficient is 0.2476. The value is near 0, which means that there is a weak positive correlation between the DBP and the BMI.
+
+{{< pagebreak >}}
+
+#### 2. Analysis difference between the two categories of variable 'cardio'.
+
+Spearman's rank correlation coefficient and DBP \~ BMI scatter plot per class of 'cardio' are use to analysis difference between two class.
+
+```{r task4_2}
+#| echo: false
+#| warning: false
+
+# Correlation factor between DBP and BMI for Cardio Absent
+corA_dbp_BMI = cor(cardioAbsent$ap_lo, cardioAbsent$BMI, 
+                    method = "spearman")
+
+# Correlation factor between DBP and BMI for Cardio Absent
+corP_dbp_BMI = cor(cardioPresent$ap_lo, cardioPresent$BMI, 
+                    method = "spearman")
+
+# Print Correlation Coefficient value
+cat("DBM and BMI Correlation Coefficient for class cardio disease absent : ", 
+    corA_dbp_BMI)
+cat("DBM and BMI Correlation Coefficient for class cardio disease present: ", 
+    corP_dbp_BMI)
+
+# Compare Scatter plot between SBP and BMI per cardio class.
+dbp_BMI_cardioPresent = ggplot(cardioPresent,aes(x=BMI,y=ap_lo,color=cardio)) +
+                           geom_point(alpha = .3) +
+                           xlim(15,75)
+                           
+dbp_BMI_cardioAbsent = ggplot(cardioAbsent, 
+                              aes(x=BMI, y=ap_lo,color=cardio)) +
+                      geom_point(alpha = .3) +
+                      scale_color_manual(values=c("blue")) +
+                      xlim(15,75) 
+                      
+dbp_BMI_cardioAbsent / dbp_BMI_cardioPresent +  
+  plot_annotation(title = "Scatter plot : DBP ~ BMI per cardio class",
+                  theme = theme_bw())
+```
+
+Conclusion:
+
+Correlation coefficient for class cardio disease present is slightly less than for class cardio disease absent. i.e. 0.007.
+
+Correlation coefficient for class cardio disease present and absent are respectively 0.188 and 0.195, which is small.
+
+Scatter plot does not shows any significant difference in relationship of DBP and BMI between the two class of variable 'cardio'. As analysis, there is no significant difference between the two class of variable 'cardio'.
+
+{{< pagebreak >}}
+
+# Task 05 - SBP\~BMI and DBP\~BMI
+
+#### **Task Description :**
+
+For patients whose respective blood pressure is below the 95% quantile threshold of the respective blood pressure and whose BMI is below the 95% quantile of BMI. How SBP \~ BMI and DBP \~ BMI correlated to each others?
+
+Filter BMI, SBP and DBP data below 95% quantile threshold.
+
+```{r task5_filter}
+# Remove subjects whose SBP, DBP and BMI the below 95% quantile threshold.
+sbp_dbp_BMI_Q95 = cardioDataTask2 |>
+                  filter(ap_hi <= quantile(ap_hi, 0.95),
+                         ap_lo <= quantile(ap_lo, 0.95),
+                         BMI <= quantile(BMI, 0.95))
+```
+
+As Tasks 3 and 4, Spearman Correlation and scatter-plot are used to to assess the correlation.
+
+#### 1. Correlation between SBP and BMI
+
+```{r task5_sbp_1}
+#| echo: false
+#| warning: false
+
+# Correlation factor between SBP and BMI using data below 95% quantile threshold.
+cor_sbp_BMI_task5 = cor(sbp_dbp_BMI_Q95$ap_hi, sbp_dbp_BMI_Q95$BMI, 
+                    method = "spearman")
+
+# Print Correlation Coefficient value
+cat("SBM and BMI correlation Coefficient with Spearman Method : ", 
+    cor_sbp_BMI_task5)
+
+#Scatter Plot between SBP and BMI
+BMI_sbp_task5 = ggplot(sbp_dbp_BMI_Q95, aes(x=BMI, y=ap_hi, color=cardio)) +
+                geom_point(alpha = .3) + # Overplotting
+                xlim(15,75) +
+                labs(title = "SBP ~ BMI") +
+                theme_bw()
+
+BMI_sbp_task5
+```
+
+Conclusion :
+
+The Spearman Correlation coefficient is 0.249. The value is near 0, which means that there is a very low positive correlation between the SBP and the BMI.
+
+{{< pagebreak >}}
+
+#### 2. Correlation between DBP and BMI
+
+```{r task5_dbp_1}
+#| echo: false
+#| warning: false
+
+# Correlation factor between DBP and BMI using data below 95% quantile threshold.
+cor_dbp_BMI_task5 = cor(sbp_dbp_BMI_Q95$ap_lo, sbp_dbp_BMI_Q95$BMI, 
+                    method = "spearman")
+
+# Print Correlation Coefficient value
+cat("DBM and BMI correlation Coefficient with Spearman Method : ", 
+    cor_dbp_BMI_task5)
+
+#Scatter Plot between DBP and BMI
+BMI_dbp_task5 = ggplot(sbp_dbp_BMI_Q95, aes(x=BMI, y=ap_lo, color=cardio)) +
+                geom_point(alpha = .3) + # Overplotting
+                xlim(15,75) +
+                labs(title = "DBP ~ BMI") +
+                theme_bw()
+
+BMI_dbp_task5
+```
+
+Conclusion:
+
+The Spearman Correlation coefficient is 0.219. The value is near 0, which means that there is a very low positive correlation between the DBP and the BMI.
+
+{{< pagebreak >}}
+
+#### 3. SBP and BMI correlation between cardio class
+
+Same as Tasks 3 and 4, Spearman's rank correlation coefficient scatter plot per class of 'cardio' are use to analysis difference between two class.
+
+```{r task5_sbp_2}
+#| echo: false
+#| warning: false
+
+# Filter data base on cardio 2 class i.e. Absent and Present.
+cardioAbsentQ95 = sbp_dbp_BMI_Q95 |>
+                  filter(cardio == "Absent") 
+
+cardioPresentQ95 = sbp_dbp_BMI_Q95 |>
+                   filter(cardio == "Present")
+
+# Correlation factor between SBP and BMI for Cardio Absent
+corA_sbp_BMI_q95 = cor(cardioAbsentQ95$ap_hi, cardioAbsentQ95$BMI, 
+                    method = "spearman")
+
+# Correlation factor between SBP and BMI for Cardio Absent
+corP_sbp_BMI_q95 = cor(cardioPresentQ95$ap_hi, cardioPresentQ95$BMI, 
+                    method = "spearman")
+
+# Print Correlation Coefficient value
+cat("SBM and BMI Correlation Coefficient for class cardio disease absent : ", 
+    corA_sbp_BMI_q95)
+cat("SBM and BMI Correlation Coefficient for class cardio disease present: ", 
+    corP_sbp_BMI_q95)
+
+# Compare Scatter plot between SBP and BMI per cardio class.
+sbp_BMI_cardioPresentQ95 = ggplot(cardioPresentQ95,aes(x=BMI,y=ap_hi,color=cardio)) +
+                           geom_point(alpha = .3) +
+                           xlim(15,75)
+                           
+sbp_BMI_cardioAbsentQ95 = ggplot(cardioAbsentQ95, 
+                              aes(x=BMI, y=ap_hi,color=cardio)) +
+                      geom_point(alpha = .3) +
+                      scale_color_manual(values=c("blue")) +
+                      xlim(15,75)
+
+sbp_BMI_cardioAbsentQ95 / sbp_BMI_cardioPresentQ95 +  
+  plot_annotation(title = "Scatter plot : SBP ~ BMI per cardio class", 
+                  theme = theme_bw())
+```
+
+Conclusion:
+
+Correlation coefficient for class cardio disease present is slightly less than for class cardio disease absent. i.e. 0.02. Correlation coefficient for class cardio disease present and absent are respectively 0.18 and 0.20, which is small.
+
+Scatter plot does not shows any significant difference in relationship of SBM and BMI between the two class of variable 'cardio'. As analysis, there is no significant difference between the two class of variable 'cardio'.
+
+{{< pagebreak >}}
+
+#### 4. DBP and BMI correlation between cardio class
+
+Data is split between cardio class. Calculated Correlation factor per cardio class. In addition, scatter plot between DBP and BMI per class of 'cardio' is plotted to analysis difference between two class.
+
+```{r task5_dbp_2}
+#| echo: false
+#| warning: false
+
+# Correlation factor between DBP and BMI for Cardio Absent
+corA_dbp_BMI_q95 = cor(cardioAbsentQ95$ap_lo, cardioAbsentQ95$BMI, 
+                    method = "spearman")
+
+# Correlation factor between DBP and BMI for Cardio Absent
+corP_dbp_BMI_q95 = cor(cardioPresentQ95$ap_lo, cardioPresentQ95$BMI, 
+                    method = "spearman")
+
+# Print Correlation Coefficient value
+cat("DBM and BMI Correlation Coefficient for class cardio disease absent : ", 
+    corA_dbp_BMI_q95)
+cat("DBM and BMI Correlation Coefficient for class cardio disease present: ", 
+    corP_dbp_BMI_q95)
+
+# Compare Scatter plot between DBP and BMI per cardio class.
+dbp_BMI_cardioPresentQ95 = ggplot(cardioPresentQ95,
+                                  aes(x=BMI,y=ap_lo,color=cardio)) +
+                           geom_point(alpha = .3) +
+                           xlim(15,75) 
+                         
+dbp_BMI_cardioAbsentQ95 = ggplot(cardioAbsentQ95, 
+                              aes(x=BMI, y=ap_lo,color=cardio)) +
+                      geom_point(alpha = .3) +
+                      scale_color_manual(values=c("blue")) +
+                      xlim(15,75) 
+
+dbp_BMI_cardioAbsentQ95 / dbp_BMI_cardioPresentQ95 +  
+  plot_annotation(title = "Scatter plot : DBP ~ BMI per cardio class",
+                  theme = theme_bw())
+```
+
+Conclusion:
+
+Correlation coefficient for class cardio disease present is slightly less than for class cardio disease absent. i.e. 0.01. Correlation coefficient for class cardio disease present and absent are respectively 0.16 and 0.17, which is small.
+
+Scatter plot does not shows any significant difference in relationship of DBM and BMI between the two class of variable 'cardio'. As analysis, there is no significant difference between the two class of variable 'cardio'.
+
+{{< pagebreak >}}
+
+# Task 06 - Age Distribution 
+
+#### **Task Description :**
+
+How is age distributed in the different categories of cardio?
+
+**Analysis of Age distribution in the different categories of cardio :**
+
+```{r task6}
+#| echo: false
+
+# Age statistic summary Table group by cardio categories. 
+age_cardio_Stat = cardioDataTask2 |>
+               group_by(cardio) |>
+               summarise(Min = min(age), 
+                        Q1st = quantile(age, p=0.25),
+                        Median = median(age),
+                        Mean = mean(age),
+                        Q3rd = quantile(age, p=0.75),
+                        Max = max(age)
+                        )
+
+# Print Age summary Table
+kbl(age_cardio_Stat, booktabs = T, digits=2, align='c',
+       caption="Age Statistics Summary") |>
+  kable_styling(latex_options = c("striped","HOLD_position"))
+
+# Histogram stack bar with categories of cardio
+task6_hist_fill = ggplot(cardioDataTask2) +
+  geom_histogram(aes(age, fill=cardio),
+                 color="black", binwidth=4, position="fill") +
+  labs(x="age (years)")
+
+# Boxplot of age
+task6_boxplot = ggplot(cardioDataTask2) +
+  geom_boxplot(aes(y=cardio, x=age, color=cardio)) +
+  labs(x="age (years)")
+
+# Density plot of age
+task6_density = ggplot(cardioDataTask2, 
+                         aes(age, fill=cardio, color=cardio)) +
+                    geom_density(alpha = 0.3) +
+                    labs(x="age (years)")
+
+task6_hist_fill / task6_boxplot / task6_density +
+  plot_layout(guides = 'collect') +
+  plot_annotation(title = "Age Distribution in outcome variable cardio",
+                  theme = theme_bw())
+
+```
+
+##### Conclusion:
+
+Median age for cardiac disease present is higher than for cardiac disease absent by 4 years.
+
+For cardiac disease present, middle 50% are in age between 50 and 60. For cardiac disease absent, middle 50% are in age between 46 and 56. Age distribution for cardiac disease present is left-skewed. Rage of age spread is same for cardiac disease absent and present.
+
+Histogram shows, present of cardiac disease is increase with age. Present of cardiac disease is 25% in 1st age ground and approx. 75% in last age group.
+
+{{< pagebreak >}}
+
+# Task 07 - Age Distribution
+
+#### **Task Description:**
+
+Create a plot that show the distribution of age for both types of gender and both types of cardio.
+
+```{r task7-plot}
+# Boxplot 
+ggplot(cardioDataTask2) +
+  geom_boxplot(aes(x=cardio, y=age, color=cardio)) +
+  facet_grid( ~ gender) +
+  ylab("age (year)") +
+  labs(title = "Age Distribition for gender and cardio Types") +
+  theme_bw()
+```
+
+{{< pagebreak >}}
+
+# Task 08 - Age Distribution
+
+#### **Task Description:**
+
+Extend this plot by taking the different types of glucose into account.
+
+```{r task8}
+
+ggplot(cardioDataTask2) +
+  geom_boxplot(aes(x=cardio, y=age, color=cardio)) +
+  facet_grid(gender ~ gluc) +
+  labs(title = "Age Box-Plot: for Gender, Cardio and Glucose types") +
+  theme_bw()
+```
+
+{{< pagebreak >}}
+
+# Task 09 - Category Variables Correlation 
+
+#### **Task Description :**
+
+Further risk factors for a cardiovascular disease may be smoking, alcohol, and insufficient physical activity. Create an overview table of how these three parameters are distributed between the two types of cardio and compare all three with a χ2-test, respectively. Draw a conclusion about which of these parameters may be risk factors for cardiovascular diseases.
+
+#### 1. Contingency table :
+
+Risk parameters i.e. smoking, alcohol, and insufficient physical activity distribution between two types of cardio.
+
+```{r task9-table}
+#| echo: false
+
+# Freq. table using ftable()
+# Select only Catagory variables 3 risk factors and cardio
+task9Data = cardioDataTask2 |>
+            select(active, smoke, alco, cardio)
+
+# Covert ftable to dataframe to print with kabelExtra.
+overviewTableF = as.data.frame(ftable(task9Data)) |>
+                 pivot_wider(names_from = cardio, values_from = Freq) |>
+                 rename(Active=active, Smoke=smoke, Alcohol=alco)
+
+# Print Contingency Table                
+kbl(overviewTableF,  booktabs = T,
+    caption="Contingency Table: Distributions of three risk factors") |>
+    kable_styling(latex_options = c("striped", "HOLD_position")) |>
+    add_header_above(c(" "," "," ","Cardio" = 2))
+```
+
+#### 2. Chi-squared test:
+
+Statistical test to test if the relationship of two variables is independent or not.
+
+-   Chi-squared test : Cardio \~ Alcohol
+
+```{r task9-x2-alco}
+#| echo: false
+
+# chi-test bwtween catagory variables cardio and alcohol
+chiTest_cardio_alco = chisq.test(cardioDataTask2$cardio,
+                                   cardioDataTask2$alco)
+chiTest_cardio_alco
+```
+
+-   Chi-squared test : Cardio \~ Smoking
+
+```{r task9-x2-smoke}
+#| echo: false
+
+# chi-test bwtween catagory variables cardio and smoking
+chiTest_cardio_smoke = chisq.test(cardioDataTask2$cardio,
+                                   cardioDataTask2$smoke)
+chiTest_cardio_smoke
+```
+
+-   Chi-squared test : Cardio \~ Activity
+
+```{r task9-x2-active}
+#| echo: false
+
+# chi-test bwtween catagory variables cardio and physical activity
+chiTest_cardio_active = chisq.test(cardioDataTask2$cardio,
+                                   cardioDataTask2$active)
+chiTest_cardio_active
+```
+
+#### 3. Conclusion:
+
+-   Assumption that independent between variables 'cardio' and 'Alcohol' is rejected, as statistical test p-value is less than 0.05.
+
+-   Assumption that independent between variables 'cardio' and 'Smoking' is rejected, as statistical test p-value is less than 0.05.
+
+-   Assumption that independent between variables 'cardio' and 'Physical Activity' is rejected, as statistical test p-value is less than 0.05.
